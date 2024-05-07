@@ -45,6 +45,10 @@ dependencies:
   cupertino_icons: ^1.0.5
   device_info_plus: ^9.0.2
   shared_preferences: ^2.1.2
+  location: ^6.0.2
+  talker_flutter: ^4.0.2
+  talker_dio_logger: ^4.0.2
+  permission_handler: ^11.3.1
 
   # optional if you wish to use a custom foreground service notification
   flutter_local_notifications: ^14.1.1

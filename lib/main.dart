@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 import 'dart:io';
 import 'dart:ui';
 
@@ -7,11 +8,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:location/location.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:talker_flutter/talker_flutter.dart';
 
+final talker = TalkerFlutter.init();
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // await initializeService();
+  await Permission.locationAlways.request();
+  await Permission.location.request();
+
+  await initializeService();
   runApp(const MyApp());
 }
 
@@ -47,7 +55,7 @@ Future<void> initializeService() async {
   await service.configure(
     androidConfiguration: AndroidConfiguration(
       // this will be executed when app is in foreground or background in separated isolate
-      onStart: (ServiceInstance serviceInstance) {},
+      onStart: onStart,
 
       // auto start service
       autoStart: true,
@@ -63,7 +71,7 @@ Future<void> initializeService() async {
       autoStart: true,
 
       // this will be executed when app is in foreground in separated isolate
-      onForeground: (ServiceInstance serviceInstance) {},
+      onForeground: onStart,
 
       // you have to enable background fetch capability on xcode project
       onBackground: onIosBackground,
@@ -77,7 +85,7 @@ Future<void> initializeService() async {
 @pragma('vm:entry-point')
 Future<bool> onIosBackground(ServiceInstance service) async {
   WidgetsFlutterBinding.ensureInitialized();
-  DartPluginRegistrant.ensureInitialized();
+  // DartPluginRegistrant.ensureInitialized();
 
   SharedPreferences preferences = await SharedPreferences.getInstance();
   await preferences.reload();
@@ -88,88 +96,92 @@ Future<bool> onIosBackground(ServiceInstance service) async {
   return true;
 }
 
-// @pragma('vm:entry-point')
-// void onStart(ServiceInstance service) async {
-//   // Only available for flutter 3.0.0 and later
-//   DartPluginRegistrant.ensureInitialized();
+@pragma('vm:entry-point')
+void onStart(ServiceInstance service) async {
+  Location location = Location();
+  // Only available for flutter 3.0.0 and later
+  // DartPluginRegistrant.ensureInitialized();
 
-//   // For flutter prior to version 3.0.0
-//   // We have to register the plugin manually
+  // For flutter prior to version 3.0.0
+  // We have to register the plugin manually
 
-//   SharedPreferences preferences = await SharedPreferences.getInstance();
-//   await preferences.setString("hello", "world");
+  SharedPreferences preferences = await SharedPreferences.getInstance();
+  await preferences.setString("hello", "world");
 
-//   /// OPTIONAL when use custom notification
-//   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-//       FlutterLocalNotificationsPlugin();
+  /// OPTIONAL when use custom notification
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
 
-//   if (service is AndroidServiceInstance) {
-//     service.on('setAsForeground').listen((event) {
-//       service.setAsForegroundService();
-//     });
+  if (service is AndroidServiceInstance) {
+    service.on('setAsForeground').listen((event) {
+      service.setAsForegroundService();
+    });
 
-//     service.on('setAsBackground').listen((event) {
-//       service.setAsBackgroundService();
-//     });
-//   }
+    service.on('setAsBackground').listen((event) {
+      service.setAsBackgroundService();
+    });
+  }
 
-//   service.on('stopService').listen((event) {
-//     service.stopSelf();
-//   });
+  service.on('stopService').listen((event) {
+    service.stopSelf();
+  });
 
-//   // bring to foreground
-//   Timer.periodic(const Duration(seconds: 1), (timer) async {
-//     if (service is AndroidServiceInstance) {
-//       if (await service.isForegroundService()) {
-//         /// OPTIONAL for use custom notification
-//         /// the notification id must be equals with AndroidConfiguration when you call configure() method.
-//         flutterLocalNotificationsPlugin.show(
-//           888,
-//           'COOL SERVICE',
-//           'Awesome ${DateTime.now()}',
-//           const NotificationDetails(
-//             android: AndroidNotificationDetails(
-//               'my_foreground',
-//               'MY FOREGROUND SERVICE',
-//               icon: 'ic_bg_service_small',
-//               ongoing: true,
-//             ),
-//           ),
-//         );
+  location.onLocationChanged.listen((LocationData currentLocation) {
+    service.invoke(
+      'update',
+      {
+        "lat": currentLocation.latitude ?? 0,
+        "lon": currentLocation.longitude ?? 0,
+      },
+    );
+    log('location upd');
+  });
+  // bring to foreground
+  // Timer.periodic(const Duration(seconds: 1), (timer) async {
+  //   if (service is AndroidServiceInstance) {
+  //     if (await service.isForegroundService()) {
+  //       /// OPTIONAL for use custom notification
+  //       /// the notification id must be equals with AndroidConfiguration when you call configure() method.
+  //       flutterLocalNotificationsPlugin.show(
+  //         888,
+  //         'COOL SERVICE',
+  //         'Awesome ${DateTime.now()}',
+  //         const NotificationDetails(
+  //           android: AndroidNotificationDetails(
+  //             'my_foreground',
+  //             'MY FOREGROUND SERVICE',
+  //             icon: 'ic_bg_service_small',
+  //             ongoing: true,
+  //           ),
+  //         ),
+  //       );
 
-//         // if you don't using custom notification, uncomment this
-//         service.setForegroundNotificationInfo(
-//           title: "My App Service",
-//           content: "Updated at ${DateTime.now()}",
-//         );
-//       }
-//     }
+  //       // if you don't using custom notification, uncomment this
+  //       service.setForegroundNotificationInfo(
+  //         title: "My App Service",
+  //         content: "Updated at ${DateTime.now()}",
+  //       );
+  //     }
+  //   }
 
-//     /// you can see this log in logcat
-//     print('FLUTTER BACKGROUND SERVICE: ${DateTime.now()}');
+  //   /// you can see this log in logcat
+  //   print('FLUTTER BACKGROUND SERVICE: ${DateTime.now()}');
 
-//     // test using external plugin
-//     final deviceInfo = DeviceInfoPlugin();
-//     String? device;
-//     if (Platform.isAndroid) {
-//       final androidInfo = await deviceInfo.androidInfo;
-//       device = androidInfo.model;
-//     }
+  //   // test using external plugin
+  //   final deviceInfo = DeviceInfoPlugin();
+  //   String? device;
+  //   if (Platform.isAndroid) {
+  //     final androidInfo = await deviceInfo.androidInfo;
+  //     device = androidInfo.model;
+  //   }
 
-//     if (Platform.isIOS) {
-//       final iosInfo = await deviceInfo.iosInfo;
-//       device = iosInfo.model;
-//     }
+  //   if (Platform.isIOS) {
+  //     final iosInfo = await deviceInfo.iosInfo;
+  //     device = iosInfo.model;
+  //   }
 
-//     service.invoke(
-//       'update',
-//       {
-//         "current_date": DateTime.now().toIso8601String(),
-//         "device": device,
-//       },
-//     );
-//   });
-// }
+  // });
+}
 
 class MyApp extends StatefulWidget {
   const MyApp({Key? key}) : super(key: key);
@@ -199,12 +211,14 @@ class _MyAppState extends State<MyApp> {
                 }
 
                 final data = snapshot.data!;
-                String? device = data["device"];
-                DateTime? date = DateTime.tryParse(data["current_date"]);
+                double latitude = data["lat"];
+                double longitude = data["lon"];
+                talker.log('$latitude $longitude');
+                // DateTime? date = DateTime.tryParse(data["current_date"]);
                 return Column(
                   children: [
-                    Text(device ?? 'Unknown'),
-                    Text(date.toString()),
+                    Text(latitude.toString() ?? 'Unknown'),
+                    Text(longitude.toString()),
                   ],
                 );
               },
@@ -239,6 +253,17 @@ class _MyAppState extends State<MyApp> {
                 }
                 setState(() {});
               },
+            ),
+            GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => TalkerScreen(talker: talker),
+                ));
+              },
+              child: const CircleAvatar(
+                backgroundColor: Colors.red,
+                radius: 20,
+              ),
             ),
             const Expanded(
               child: LogView(),
